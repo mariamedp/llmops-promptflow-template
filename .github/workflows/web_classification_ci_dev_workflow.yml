@@ -32,7 +32,7 @@ on:
 #=====================================
 jobs:
   execute-platform-flow-ci:
-    uses: ./.github/workflows/platform_ci_dev_workflow.yml
+    uses: microsoft/llmops-promptflow-template/.github/workflows/platform_ci_dev_workflow.yml@main
     with:
       env_name: ${{ inputs.env_name || 'dev'}}
       use_case_base_path: ${{ inputs.use_case_base_path || 'web_classification' }}
