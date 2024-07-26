@@ -6,6 +6,9 @@ inputs:
   llmops_repository:
     description: "The url to llmops promptflow template repository"
     default: microsoft/llmops-promptflow-template
+  llmops_ref:
+    description: "The branch branch/tag/SHA to checkout from llmops promptflow template repository"
+    required: false
 
 runs:
   using: composite
@@ -17,6 +20,7 @@ runs:
     uses: actions/checkout@v4
     with:
       repository: ${{ inputs.llmops_repository }}
+      ref: ${{ inputs.llmops_ref }}
       sparse-checkout: |
         .github/actions/
         .github/requirements/
@@ -28,12 +32,15 @@ runs:
     shell: bash
     run: |
       # Move checked out files to root
-      # Merging folders not supported with mv, so explicitly moving contents of each of them
-      # If file exists in current repo, it will not be overrided
-      mv TMPCHECKOUT/.github/actions/* .github/actions/ --no-clobber --verbose
-      mv TMPCHECKOUT/.github/requirements/* .github/requirements/ --no-clobber --verbose
-      mv TMPCHECKOUT/* . --no-clobber --verbose
       rm -rf TMPCHECKOUT/.git
+      # If file exists in current repo, it should not be overriden
+      # Merging folders not supported with mv, so explicitly moving contents of each of them
+      mkdir -p .github/actions/
+      mv TMPCHECKOUT/.github/actions/* .github/actions/ --no-clobber --verbose
+      mkdir -p .github/requirements/
+      mv TMPCHECKOUT/.github/requirements/* .github/requirements/ --no-clobber --verbose
+      mkdir -p llmops/
+      mv TMPCHECKOUT/llmops/* llmops/ --no-clobber --verbose
       echo "--- Files from llmops template skipped in checkout due to already existing files: ---"
       find TMPCHECKOUT/
       echo "------"
