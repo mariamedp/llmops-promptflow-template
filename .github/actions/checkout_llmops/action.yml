@@ -1,0 +1,39 @@
+name: Checkout repo and llmops utils
+
+description: Checkout current repo and all additional llmops utils from template repo
+
+inputs:
+  llmops_repository:
+    description: "The url to llmops promptflow template repository"
+    default: microsoft/llmops-promptflow-template
+
+runs:
+  using: composite
+  steps:
+  - name: Checkout this repo
+    uses: actions/checkout@v4
+
+  - name: Checkout llmops utils from template repository
+    uses: actions/checkout@v4
+    with:
+      repository: ${{ inputs.llmops_repository }}
+      sparse-checkout: |
+        .github/actions/
+        .github/requirements/
+        llmops/
+      sparse-checkout-cone-mode: false
+      path: TMPCHECKOUT
+
+  - name: Move checked out files to root
+    shell: bash
+    run: |
+      # Merging folders not supported with mv, so explicitly moving contents of each of them
+      # If file exists in current repo, it will not be overrided
+      mv TMPCHECKOUT/.github/actions/ .github/actions/ --no-clobber --verbose
+      mv TMPCHECKOUT/.github/requirements/ .github/requirements/ --no-clobber --verbose
+      mv TMPCHECKOUT/* . --no-clobber --verbose
+      rm -rf TMPCHECKOUT/.git
+      echo "--- Files from llmops template skipped in checkout: ---"
+      find TMPCHECKOUT/
+      echo "------"
+      rm -rf TMPCHECKOUT/
