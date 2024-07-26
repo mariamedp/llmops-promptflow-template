@@ -11,6 +11,10 @@ on:
         type: string
         description: "The flow use-case to execute"
         required: true
+      python_version:
+        type: string
+        description: "Python version"
+        default: "3.9"
     secrets:
       azure_credentials:
         description: "service principal auth to Azure"
@@ -38,8 +42,6 @@ jobs:
     steps:
       # - name: Checkout Actions
       #   uses: actions/checkout@v4
-      # - name: Checkout repo and llmops utils
-      #   uses: ./.github/actions/checkout_llmops
       - name: Checkout repo and llmops utils
         # uses: microsoft/llmops-promptflow-template/.github/actions/checkout_llmops@checkout-v1
         uses: mariamedp/llmops-promptflow-template/.github/actions/checkout_llmops@reusable-external  #FIXME
@@ -54,7 +56,7 @@ jobs:
       - name: Configure Azure ML Agent
         uses: ./.github/actions/configure_azureml_agent
         with:
-          versionSpec: "3.9"
+          versionSpec: ${{ inputs.python_version }}
           base_path: ${{ inputs.use_case_base_path }}
       - name: Create .env file
         run: |
@@ -106,7 +108,3 @@ jobs:
             --base_path ${{ inputs.use_case_base_path }} \
             --env_name ${{ inputs.env_name }} \
             --output_file run_id.txt
-            
-
-
-
