@@ -41,8 +41,8 @@ jobs:
       # - name: Checkout repo and llmops utils
       #   uses: ./.github/actions/checkout_llmops
       - name: Checkout repo and llmops utils
-        # uses: microsoft/llmops-promptflow-template/.github/actions/checkout_llmops@main
-        uses: mariamedp/llmops-promptflow-template/.github/actions/checkout_llmops@reusable-external
+        # uses: microsoft/llmops-promptflow-template/.github/actions/checkout_llmops@checkout-v1
+        uses: mariamedp/llmops-promptflow-template/.github/actions/checkout_llmops@reusable-external  #FIXME
 
       - name: Azure login
         uses: azure/login@v1
