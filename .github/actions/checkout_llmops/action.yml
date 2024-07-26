@@ -27,13 +27,14 @@ runs:
   - name: Move checked out files to root
     shell: bash
     run: |
+      # Move checked out files to root
       # Merging folders not supported with mv, so explicitly moving contents of each of them
       # If file exists in current repo, it will not be overrided
-      mv TMPCHECKOUT/.github/actions/ .github/actions/ --no-clobber --verbose
-      mv TMPCHECKOUT/.github/requirements/ .github/requirements/ --no-clobber --verbose
+      mv TMPCHECKOUT/.github/actions/* .github/actions/ --no-clobber --verbose
+      mv TMPCHECKOUT/.github/requirements/* .github/requirements/ --no-clobber --verbose
       mv TMPCHECKOUT/* . --no-clobber --verbose
       rm -rf TMPCHECKOUT/.git
-      echo "--- Files from llmops template skipped in checkout: ---"
+      echo "--- Files from llmops template skipped in checkout due to already existing files: ---"
       find TMPCHECKOUT/
       echo "------"
       rm -rf TMPCHECKOUT/
