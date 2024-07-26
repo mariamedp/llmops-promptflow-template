@@ -36,8 +36,10 @@ jobs:
       RESOURCE_GROUP_NAME: ${{ vars.RESOURCE_GROUP_NAME }}
       WORKSPACE_NAME: ${{ vars.WORKSPACE_NAME }}
     steps:
-      - name: Checkout Actions
-        uses: actions/checkout@v4
+      # - name: Checkout Actions
+      #   uses: actions/checkout@v4
+      - name: Checkout repo and llmops utils
+        uses: ./.github/actions/checkout_llmops
 
       - name: Azure login
         uses: azure/login@v1
