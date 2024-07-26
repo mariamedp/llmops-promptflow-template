@@ -38,8 +38,11 @@ jobs:
     steps:
       # - name: Checkout Actions
       #   uses: actions/checkout@v4
+      # - name: Checkout repo and llmops utils
+      #   uses: ./.github/actions/checkout_llmops
       - name: Checkout repo and llmops utils
-        uses: ./.github/actions/checkout_llmops
+        # uses: microsoft/llmops-promptflow-template/.github/actions/checkout_llmops@main
+        uses: mariamedp/llmops-promptflow-template/.github/actions/checkout_llmops@reusable-external
 
       - name: Azure login
         uses: azure/login@v1
