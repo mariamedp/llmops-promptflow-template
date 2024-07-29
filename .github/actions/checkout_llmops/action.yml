@@ -13,10 +13,11 @@ inputs:
 runs:
   using: composite
   steps:
-  - name: Checkout this repo
+  - name: Checkout current repo
     uses: actions/checkout@v4
 
   - name: Checkout llmops utils from template repository
+    if: ${{ github.repository != inputs.llmops_repository }}  # Skip if current repo is actually template repo
     uses: actions/checkout@v4
     with:
       repository: ${{ inputs.llmops_repository }}
@@ -29,6 +30,7 @@ runs:
       path: TMPCHECKOUT
 
   - name: Move checked out files to root
+    if: ${{ github.repository != inputs.llmops_repository }}  # Skip if current repo is actually template repo
     shell: bash
     run: |
       # Move checked out files to root
