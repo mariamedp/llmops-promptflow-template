@@ -85,6 +85,7 @@ def resolve_env_vars(base_path: str, logger: logging.Logger) -> Dict:
             else:
                 os.environ[key] = str(value)
                 env_vars[key] = str(value)
+                logger.info(f"Envvar {key} loaded.")
     else:
         env_vars = {}
         logger.info("No env file found.")
