@@ -2,6 +2,7 @@ name: class_flows_ci_dev_workflow
 
 on:
   workflow_call:
+  workflow_dispatch:
     inputs:
       env_name:
         type: string
@@ -39,4 +40,6 @@ jobs:
     secrets:
       azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
       registry_details: ${{ secrets.DOCKER_IMAGE_REGISTRY }}
-      env_vars: ${{ secrets.ENV_VARS }}
+      env_vars: |
+        ${{ secrets.ENV_VARS }}
+        lowercase_var="asdfg"
