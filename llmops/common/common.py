@@ -88,9 +88,6 @@ def resolve_env_vars(base_path: str, logger: logging.Logger) -> Dict:
     else:
         env_vars = {}
         logger.info("No env file found.")
-    print("------")
-    print(env_vars)
-    print("------")
     return env_vars
 
 
