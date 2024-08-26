@@ -58,11 +58,9 @@ def resolve_env_vars(base_path: str, logger: logging.Logger) -> Dict:
         logger.info(f"Reading envvars from '{yaml_file_path}'")
         with open(yaml_file_path, "r") as file:
             yaml_data = yaml.safe_load(file)
-        print(yaml_data)  #FIXME
-        print(list(os.environ.keys()))  #FIXME
         for key, value in yaml_data.items():
             key = str(key).strip().upper()
-            value = str(value).strip().upper()
+            value = str(value).strip()
 
             value_existing = os.environ.get(key, None)
             if value_existing is not None:
@@ -77,8 +75,8 @@ def resolve_env_vars(base_path: str, logger: logging.Logger) -> Dict:
             ):
                 value_reference = value.replace('${', '').replace('}', '')
                 try:
-                    logger.info(f"Reference {value} resolved.")
                     resolved_value = os.environ[value_reference]
+                    logger.info(f"Reference {value} resolved.")
                     os.environ[key] = str(resolved_value)
                     env_vars[key] = str(resolved_value)
                 except KeyError as e:
@@ -87,6 +85,7 @@ def resolve_env_vars(base_path: str, logger: logging.Logger) -> Dict:
             else:
                 os.environ[key] = str(value)
                 env_vars[key] = str(value)
+                logger.info(f"Envvar {key} loaded.")
     else:
         env_vars = {}
         logger.info("No env file found.")

@@ -172,6 +172,7 @@ def prepare_and_execute(
     ml_client = None
     wrapper = None
     if EXECUTION_TYPE == "LOCAL":
+        logger.info("Creating promptflow connections for local execution.")
         pf = PFClientLocal()
         create_pf_connections(
             exp_filename,
