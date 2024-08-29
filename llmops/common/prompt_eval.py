@@ -13,6 +13,7 @@ This argument is not required but will be added as a run tag if specified.
 is not required but will be used to read experiment overlay files if specified.
 --run_id: Run ids of runs to be evaluated (File or comma separated string)
 --report_dir: The directory where the outputs and metrics will be stored.
+--report_metrics_only: Option to exclude detailed results from reports and save metrics only.
 """
 
 import argparse
@@ -64,6 +65,7 @@ def prepare_and_execute(
     build_id: Optional[str] = None,
     env_name: Optional[str] = None,
     report_dir: Optional[str] = None,
+    report_metrics_only: Optional[bool] = False,
 ):
     """
     Run the evaluation loop by executing evaluation flows.
@@ -161,7 +163,7 @@ def prepare_and_execute(
             run_data_id = current_standard_run.data
             print(run_data_id)
             if not run_data_id:
-                raise ValueError(f"Run {flow_run}has no data reference.")
+                raise ValueError(f"Run {flow_run} has no data reference.")
 
             # Get evaluation datasets by getting the datasets
             # that reference the standard run
@@ -215,7 +217,7 @@ def prepare_and_execute(
                     )
                 else:
                     logger.info(
-                        f"Using runtime '{experiment.runtime}' for runn"
+                        f"Using runtime '{experiment.runtime}' for run"
                     )
 
                 timestamp = datetime.datetime.now().strftime(
@@ -315,41 +317,45 @@ def prepare_and_execute(
                 metrics.append(metric_variant)
 
                 logger.info(json.dumps(metrics, indent=4))
-                logger.info(df_result.head(10))
+                if not report_metrics_only:
+                    logger.info(df_result.head(10))
 
         if evaluator_executed and report_dir:
+            logger.info(f"Generating reports for {evaluator.name}")
             if not os.path.exists(report_dir):
                 os.makedirs(report_dir)
 
-            combined_results_df = pd.concat(dataframes, ignore_index=True)
+            # Experiment metrics
             combined_metrics_df = pd.DataFrame(metrics)
-            combined_results_df["flow_name"] = flow_name
             combined_metrics_df["flow_name"] = flow_name
-            combined_results_df["exp_run"] = flow_run
             combined_metrics_df["exp_run"] = flow_run
 
-            combined_results_df.to_csv(
-                f"{report_dir}/{run_dataset.name}_result.csv"
-                )
-            combined_metrics_df.to_csv(
-                f"{report_dir}/{run_dataset.name}_metrics.csv"
-                )
-
-            styled_df = combined_results_df.to_html(index=False)
-
-            with open(
-                f"{report_dir}/{run_dataset.name}_result.html", "w"
-            ) as c_results:
-                c_results.write(styled_df)
+            metrics_basename = f"{report_dir}/{run_dataset.name}_metrics"
+            logger.info(f"Metrics file basename: {metrics_basename}")
+            with open(f"{metrics_basename}.json", "w") as fmetrics:
+                json.dump(metrics, fmetrics)
+            combined_metrics_df.to_csv(f"{metrics_basename}.csv")
 
             html_table_metrics = combined_metrics_df.to_html(index=False)
-            with open(
-                f"{report_dir}/{run_dataset.name}_metrics.html", "w"
-            ) as c_metrics:
+            with open(f"{metrics_basename}.html", "w") as c_metrics:
                 c_metrics.write(html_table_metrics)
 
-            all_eval_df.append(combined_results_df)
             all_eval_metrics.append(combined_metrics_df)
+
+            if not report_metrics_only:
+                # Experiment detailed results
+                combined_results_df = pd.concat(dataframes, ignore_index=True)
+                combined_results_df["exp_run"] = flow_run
+                combined_results_df["flow_name"] = flow_name
+
+                results_basename = f"{report_dir}/{run_dataset.name}_result"
+                combined_results_df.to_csv(f"{results_basename}.csv")
+
+                styled_df = combined_results_df.to_html(index=False)
+                with open(f"{results_basename}.html", "w") as c_results:
+                    c_results.write(styled_df)
+
+                all_eval_df.append(combined_results_df)
 
         if flow_type == FlowTypeOption.NO_FLOW:
             service_path = evaluator.path
@@ -437,27 +443,28 @@ def prepare_and_execute(
 
                                 print(result)
 
+    if len(all_eval_metrics) > 0:
+        final_metrics_df = pd.concat(all_eval_metrics, ignore_index=True)
+
+        allmetrics_basename = f"{report_dir}/{experiment_name}_metrics"
+        final_metrics_df.to_csv(f"{allmetrics_basename}.csv")
+
+        html_table_metrics = final_metrics_df.to_html(index=False)
+        with open(f"{allmetrics_basename}.html", "w") as f_metrics:
+            f_metrics.write(html_table_metrics)
+
     if len(all_eval_df) > 0:
         final_results_df = pd.concat(all_eval_df, ignore_index=True)
-        final_metrics_df = pd.concat(all_eval_metrics, ignore_index=True)
         final_results_df["stage"] = env_name
         final_results_df["experiment_name"] = experiment_name
         final_results_df["build"] = build_id
 
-        final_results_df.to_csv(f"{report_dir}/{experiment_name}_result.csv")
-        final_metrics_df.to_csv(f"{report_dir}/{experiment_name}_metrics.csv")
+        allresults_basename = f"{report_dir}/{experiment_name}_result"
+        final_results_df.to_csv(f"{allresults_basename}.csv")
 
         styled_df = final_results_df.to_html(index=False)
-        with open(
-            f"{report_dir}/{experiment_name}_result.html", "w"
-        ) as f_results:
+        with open(f"{allresults_basename}.html", "w") as f_results:
             f_results.write(styled_df)
-
-        html_table_metrics = final_metrics_df.to_html(index=False)
-        with open(
-            f"{report_dir}/{experiment_name}_metrics.html", "w"
-        ) as f_metrics:
-            f_metrics.write(html_table_metrics)
 
 
 def main():
@@ -511,6 +518,13 @@ def main():
         default="./reports",
         help="A folder to save evaluation results and metrics",
     )
+    parser.add_argument(
+        "--report_metrics_only",
+        type=bool,
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help="Exclude detailed results from reports, save metrics only",
+    )
 
     args = parser.parse_args()
 
@@ -522,6 +536,7 @@ def main():
         args.build_id,
         args.env_name,
         args.report_dir,
+        args.report_metrics_only,
     )
 
 
