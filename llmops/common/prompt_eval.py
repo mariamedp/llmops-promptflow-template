@@ -21,12 +21,18 @@ import json
 import os
 import pandas as pd
 from dotenv import load_dotenv
-from typing import Optional
+from typing import Optional, Tuple
 import inspect
 import importlib
 
+from azure.ai.ml import MLClient
 from azure.identity import DefaultAzureCredential
+from promptflow.client import PFClient as PFClientLocal
+from promptflow.azure import PFClient as PFClientAzure
+from promptflow._sdk.entities import Run
 
+import sys  #FIXME
+sys.path.append(".")
 from llmops.common.common import (
     FlowTypeOption,
     ClientObjectWrapper as ObjectWrapper
@@ -37,14 +43,11 @@ from llmops.common.common import (
     resolve_env_vars
 )
 from llmops.common.experiment_cloud_config import ExperimentCloudConfig
-from llmops.common.experiment import load_experiment
+from llmops.common.experiment import load_experiment, Experiment, Dataset
 from llmops.common.logger import llmops_logger
 from llmops.common.create_connections import create_pf_connections
 from llmops.config import EXECUTION_TYPE
-from promptflow.client import PFClient as PFClientLocal
-from promptflow.azure import PFClient as PFClientAzure
-from promptflow._sdk.entities import Run
-from azure.ai.ml import MLClient
+
 
 logger = llmops_logger("prompt_eval")
 
@@ -77,20 +80,19 @@ def prepare_and_execute(
         None
     """
     config = ExperimentCloudConfig(subscription_id=subscription_id,
-                                   env_name=env_name
-                                   )
+                                   env_name=env_name)
+
     experiment = load_experiment(
         filename=exp_filename, base_path=base_path, env=config.environment_name
     )
     experiment_name = experiment.name
 
+    env_vars = resolve_env_vars(experiment.base_path, logger)
+
     run_ids = resolve_run_ids(run_id)
 
-    eval_flows = experiment.evaluators
-
     flow_type, params_dict = resolve_flow_type(experiment.base_path,
-                                               experiment.flow
-                                               )
+                                               experiment.flow)
 
     wrapper = None
     ml_client = None
@@ -123,77 +125,45 @@ def prepare_and_execute(
     standard_flow_detail = experiment.get_flow_detail(flow_type)
     default_variants = standard_flow_detail.default_variants
 
-    eval_run_ids = []
-
-    runs: dict[str, Run] = {}
-    for run in run_ids:
-        runs[run] = pf.runs.get(run)
+    # Collect relevant runs and datasets
+    runs: dict[str, Tuple[Run, Dataset]] = {}
+    for resolved_run_id in run_ids:
+        run_object = pf.runs.get(resolved_run_id)
+        data_id = run_object.data
+        dataset_object = resolve_dataset(data_id, experiment)
+        if dataset_object is None:
+            raise ValueError(f"Run '{resolved_run_id}' dataset '{data_id}'"
+                             " not found in experiment description.")
+        runs[resolved_run_id] = (run_object, dataset_object)
 
     if report_dir:
         if not os.path.exists(report_dir):
             os.makedirs(report_dir)
 
+    eval_run_ids = []
     all_eval_df = []
     all_eval_metrics = []
 
-    for evaluator in eval_flows:
+    for evaluator in experiment.evaluators:
         logger.info(f"Starting evaluation of '{evaluator.name}'")
 
         flow_type, params_dict = resolve_flow_type(evaluator.path, "")
 
-        env_vars = resolve_env_vars(experiment.base_path, logger)
-
         dataframes = []
         metrics = []
 
-        flow_name = evaluator.name
-
-        evaluator_executed = False
-
         # Iterate over standard flow runs
-        for flow_run in run_ids:
-            logger.info(f"Preparing evaluation of run '{flow_run}'")
+        evaluator_executed = False
+        for flow_run, (std_run_object, std_run_data_object) in runs.items():
 
-            # Get the evaluator mapping of the dataset used
-            # in the standard run
-            # Skip the evaluation of this run if not found
-            current_standard_run = runs[flow_run]
-            run_data_id = current_standard_run.data
-            print(run_data_id)
-            if not run_data_id:
-                raise ValueError(f"Run {flow_run}has no data reference.")
-
-            # Get evaluation datasets by getting the datasets
-            # that reference the standard run
-            if EXECUTION_TYPE == "AZURE":
-                run_data_name = run_data_id.split(":")[1]
-                run_dataset = experiment.get_dataset(run_data_name)
-            else:
-                run_data_name = os.path.sep.join(run_data_id.split(
-                    os.path.sep)[-2:]
-                    )
-                print(run_data_name)
-                for ds in experiment.datasets:
-                    print(ds.dataset.source)
-                    if ds.dataset.source == run_data_name:
-                        run_dataset = experiment.get_dataset(
-                            ds.dataset.name
-                            )
-                        break
-                    else:
-                        run_dataset = None
-
-            if not run_dataset:
-                raise ValueError(
-                    f"Run {flow_run} dataset {run_data_name}"
-                    f" not found in experiment description."
-                )
+            # Check if standard flow should be evaluated with active evaluator
             dataset_mapping_list = evaluator.find_dataset_with_reference(
-                run_dataset.name
+                std_run_data_object.name
             )
             if len(dataset_mapping_list) == 0:
-                continue
+                continue  # Run not relevant for active evaluator. Skipping.
 
+            evaluator_executed = True
             for dataset_mapping in dataset_mapping_list:
                 logger.info(
                         f"Preparing evaluation of run {flow_run} "
@@ -207,7 +177,6 @@ def prepare_and_execute(
                     else dataset.get_remote_source(pf.ml_client)
                     )
 
-                evaluator_executed = True
                 # Create run object
                 if not experiment.runtime:
                     logger.info(
@@ -240,7 +209,7 @@ def prepare_and_execute(
                         run = pf.run(
                             flow=evaluator.path,
                             data=data_id,
-                            run=current_standard_run,
+                            run=std_run_object,
                             name=run_name,
                             display_name=run_name,
                             environment_variables=env_vars,
@@ -256,7 +225,7 @@ def prepare_and_execute(
                         run = pf.run(
                             flow=evaluator.path,
                             data=data_id,
-                            run=current_standard_run,
+                            run=std_run_object,
                             name=run_name,
                             display_name=run_name,
                             environment_variables=env_vars,
@@ -285,12 +254,12 @@ def prepare_and_execute(
                 metric_variant = pf.get_metrics(run)
 
                 if (
-                    current_standard_run.properties.get(
+                    std_run_object.properties.get(
                         "azureml.promptflow.node_variant", None
                     )
                     is not None
                 ):
-                    variant_id = current_standard_run.properties[
+                    variant_id = std_run_object.properties[
                         "azureml.promptflow.node_variant"
                     ]
                     start_index = variant_id.find("{") + 1
@@ -323,29 +292,23 @@ def prepare_and_execute(
 
             combined_results_df = pd.concat(dataframes, ignore_index=True)
             combined_metrics_df = pd.DataFrame(metrics)
-            combined_results_df["flow_name"] = flow_name
-            combined_metrics_df["flow_name"] = flow_name
+            combined_results_df["flow_name"] = evaluator.name
+            combined_metrics_df["flow_name"] = evaluator.name
             combined_results_df["exp_run"] = flow_run
             combined_metrics_df["exp_run"] = flow_run
 
-            combined_results_df.to_csv(
-                f"{report_dir}/{run_dataset.name}_result.csv"
-                )
-            combined_metrics_df.to_csv(
-                f"{report_dir}/{run_dataset.name}_metrics.csv"
-                )
+            results_basename = f"{report_dir}/{std_run_data_object.name}_result"
+            metrics_basename = f"{report_dir}/{std_run_data_object.name}_metrics"
+            logger.info(f"Metrics file basename: {metrics_basename}")  #FIXME debug
+            combined_results_df.to_csv(f"{results_basename}.csv")
+            combined_metrics_df.to_csv(f"{metrics_basename}.csv")
 
             styled_df = combined_results_df.to_html(index=False)
-
-            with open(
-                f"{report_dir}/{run_dataset.name}_result.html", "w"
-            ) as c_results:
+            with open(f"{results_basename}.html", "w") as c_results:
                 c_results.write(styled_df)
 
             html_table_metrics = combined_metrics_df.to_html(index=False)
-            with open(
-                f"{report_dir}/{run_dataset.name}_metrics.html", "w"
-            ) as c_metrics:
+            with open(f"{metrics_basename}.html", "w") as c_metrics:
                 c_metrics.write(html_table_metrics)
 
             all_eval_df.append(combined_results_df)
@@ -444,20 +407,33 @@ def prepare_and_execute(
         final_results_df["experiment_name"] = experiment_name
         final_results_df["build"] = build_id
 
-        final_results_df.to_csv(f"{report_dir}/{experiment_name}_result.csv")
-        final_metrics_df.to_csv(f"{report_dir}/{experiment_name}_metrics.csv")
+        allresults_basename = f"{report_dir}/{experiment_name}_result"
+        allmetrics_basename = f"{report_dir}/{experiment_name}_metrics"
+        final_results_df.to_csv(f"{allresults_basename}.csv")
+        final_metrics_df.to_csv(f"{allmetrics_basename}.csv")
 
         styled_df = final_results_df.to_html(index=False)
-        with open(
-            f"{report_dir}/{experiment_name}_result.html", "w"
-        ) as f_results:
+        with open(f"{allresults_basename}.html", "w") as f_results:
             f_results.write(styled_df)
 
         html_table_metrics = final_metrics_df.to_html(index=False)
-        with open(
-            f"{report_dir}/{experiment_name}_metrics.html", "w"
-        ) as f_metrics:
+        with open(f"{allmetrics_basename}.html", "w") as f_metrics:
             f_metrics.write(html_table_metrics)
+
+
+def resolve_dataset(dataset_id: str, experiment: Experiment) -> Dataset:
+    if dataset_id is None:
+        return None
+    elif EXECUTION_TYPE == "AZURE":
+        run_data_name = dataset_id.split(":")[1]
+        return experiment.get_dataset(run_data_name)
+    else:
+        run_data_name = os.path.sep.join(
+            dataset_id.split(os.path.sep)[-2:])
+        for ds in experiment.datasets:
+            if ds.dataset.source == run_data_name:
+                return experiment.get_dataset(ds.dataset.name)
+            return None  # Not found
 
 
 def main():
