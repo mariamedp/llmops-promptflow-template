@@ -13,7 +13,7 @@ This argument is not required but will be added as a run tag if specified.
 is not required but will be used to read experiment overlay files if specified.
 --run_id: Run ids of runs to be evaluated (File or comma separated string)
 --report_dir: The directory where the outputs and metrics will be stored.
---report_metrics_only: Option to exclude detailed results from reports and save metrics only.
+--save_metrics_only: Option to exclude detailed results from reports and save metrics only.
 """
 
 import argparse
@@ -65,7 +65,7 @@ def prepare_and_execute(
     build_id: Optional[str] = None,
     env_name: Optional[str] = None,
     report_dir: Optional[str] = None,
-    report_metrics_only: Optional[bool] = False,
+    save_metrics_only: Optional[bool] = False,
 ):
     """
     Run the evaluation loop by executing evaluation flows.
@@ -315,7 +315,7 @@ def prepare_and_execute(
                 metrics.append(metric_variant)
 
                 logger.info(json.dumps(metrics, indent=4))
-                if not report_metrics_only:
+                if not save_metrics_only:
                     logger.info(df_result.head(10))
 
         if evaluator_executed and report_dir:
@@ -340,7 +340,7 @@ def prepare_and_execute(
 
             all_eval_metrics.append(combined_metrics_df)
 
-            if not report_metrics_only:
+            if not save_metrics_only:
                 # Experiment detailed results
                 combined_results_df = pd.concat(dataframes, ignore_index=True)
                 combined_results_df["exp_run"] = flow_run
@@ -518,7 +518,7 @@ def main():
         help="A folder to save evaluation results and metrics",
     )
     parser.add_argument(
-        "--report_metrics_only",
+        "--save_metrics_only",
         type=bool,
         default=False,
         action=argparse.BooleanOptionalAction,
@@ -535,7 +535,7 @@ def main():
         args.build_id,
         args.env_name,
         args.report_dir,
-        args.report_metrics_only,
+        args.save_metrics_only,
     )
 
 
