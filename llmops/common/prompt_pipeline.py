@@ -216,6 +216,10 @@ def prepare_and_execute(
         dataset = mapped_dataset.dataset
         column_mapping = mapped_dataset.mappings
 
+        run_tags = {"data": dataset.name}
+        if build_id:
+            run_tags["build_id"] = build_id
+
         dataframes = []
         metrics = []
 
@@ -290,9 +294,7 @@ def prepare_and_execute(
                                 display_name=run_name,
                                 environment_variables=env_vars,
                                 column_mapping=column_mapping,
-                                tags={} if not build_id else {
-                                    "build_id": build_id
-                                },
+                                tags=run_tags,
                                 resources=runtime_resources,
                                 runtime=experiment.runtime,
                                 stream=True,
@@ -312,9 +314,7 @@ def prepare_and_execute(
                                 display_name=run_name,
                                 environment_variables=env_vars,
                                 column_mapping=column_mapping,
-                                tags={} if not build_id else {
-                                    "build_id": build_id
-                                },
+                                tags=run_tags,
                                 resources=runtime_resources,
                                 runtime=experiment.runtime,
                                 init=params_dict,
@@ -383,7 +383,7 @@ def prepare_and_execute(
                     display_name=run_name,
                     environment_variables=env_vars,
                     column_mapping=column_mapping,
-                    tags={} if not build_id else {"build_id": build_id},
+                    tags=run_tags,
                     resources=runtime_resources,
                     runtime=experiment.runtime,
                     stream=True,
@@ -402,7 +402,7 @@ def prepare_and_execute(
                     display_name=run_name,
                     environment_variables=env_vars,
                     column_mapping=column_mapping,
-                    tags={} if not build_id else {"build_id": build_id},
+                    tags=run_tags,
                     resources=runtime_resources,
                     runtime=experiment.runtime,
                     init=params_dict,

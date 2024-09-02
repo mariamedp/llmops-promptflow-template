@@ -88,8 +88,6 @@ def prepare_and_execute(
 
     run_ids = resolve_run_ids(run_id)
 
-    eval_flows = experiment.evaluators
-
     flow_type, params_dict = resolve_flow_type(experiment.base_path,
                                                experiment.flow
                                                )
@@ -138,7 +136,7 @@ def prepare_and_execute(
     all_eval_df = []
     all_eval_metrics = []
 
-    for evaluator in eval_flows:
+    for evaluator in experiment.evaluators:
         logger.info(f"Starting evaluation with '{evaluator.name}'")
 
         flow_type, params_dict = resolve_flow_type(evaluator.path, "")
@@ -207,6 +205,10 @@ def prepare_and_execute(
                     else dataset.get_remote_source(pf.ml_client)
                     )
 
+                run_tags = {"data": dataset.name}
+                if build_id:
+                    run_tags["build_id"] = build_id
+
                 evaluator_executed = True
                 # Create run object
                 if not experiment.runtime:
@@ -245,9 +247,7 @@ def prepare_and_execute(
                             display_name=run_name,
                             environment_variables=env_vars,
                             column_mapping=column_mapping,
-                            tags={} if not build_id else {
-                                "build_id": build_id
-                                },
+                            tags=run_tags,
                             runtime=experiment.runtime,
                             resources=runtime_resources,
                             stream=True,
@@ -261,9 +261,7 @@ def prepare_and_execute(
                             display_name=run_name,
                             environment_variables=env_vars,
                             column_mapping=column_mapping,
-                            tags={} if not build_id else {
-                                "build_id": build_id
-                                },
+                            tags=run_tags,
                             runtime=experiment.runtime,
                             resources=runtime_resources,
                             init=params_dict,
