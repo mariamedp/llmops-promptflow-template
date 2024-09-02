@@ -139,7 +139,7 @@ def prepare_and_execute(
     all_eval_metrics = []
 
     for evaluator in eval_flows:
-        logger.info(f"Starting evaluation of '{evaluator.name}'")
+        logger.info(f"Starting evaluation with '{evaluator.name}'")
 
         flow_type, params_dict = resolve_flow_type(evaluator.path, "")
 
@@ -147,8 +147,6 @@ def prepare_and_execute(
 
         dataframes = []
         metrics = []
-
-        flow_name = evaluator.name
 
         evaluator_executed = False
 
@@ -327,13 +325,13 @@ def prepare_and_execute(
 
             # Experiment metrics
             combined_metrics_df = pd.DataFrame(metrics)
-            combined_metrics_df["flow_name"] = flow_name
+            combined_metrics_df["flow_name"] = evaluator.name
             combined_metrics_df["exp_run"] = flow_run
 
-            metrics_basename = f"{report_dir}/{run_dataset.name}_metrics"
+            metrics_basename = f"{report_dir}/{evaluator.name}_metrics"
             logger.info(f"Metrics file basename: {metrics_basename}")
-            with open(f"{metrics_basename}.json", "w") as fmetrics:
-                json.dump(metrics, fmetrics)
+            with open(f"{metrics_basename}.json", "w") as f_metrics:
+                json.dump(metrics, f_metrics)
             combined_metrics_df.to_csv(f"{metrics_basename}.csv")
 
             html_table_metrics = combined_metrics_df.to_html(index=False)
@@ -346,9 +344,9 @@ def prepare_and_execute(
                 # Experiment detailed results
                 combined_results_df = pd.concat(dataframes, ignore_index=True)
                 combined_results_df["exp_run"] = flow_run
-                combined_results_df["flow_name"] = flow_name
+                combined_results_df["flow_name"] = evaluator.name
 
-                results_basename = f"{report_dir}/{run_dataset.name}_result"
+                results_basename = f"{report_dir}/{evaluator.name}_result"
                 combined_results_df.to_csv(f"{results_basename}.csv")
 
                 styled_df = combined_results_df.to_html(index=False)
@@ -443,6 +441,7 @@ def prepare_and_execute(
 
                                 print(result)
 
+    # Final reports
     if len(all_eval_metrics) > 0:
         final_metrics_df = pd.concat(all_eval_metrics, ignore_index=True)
 
